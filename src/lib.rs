@@ -123,19 +123,19 @@ impl Header {
 
 #[pymethods]
 impl Metadata {
-    pub fn tag(&self) -> PyResult<usize> {
-        Ok(self.inner.metatag as usize)
+    pub fn tag(&self) -> usize {
+        self.inner.metatag as usize
     }
-    pub fn data(&self) -> PyResult<Vec<u8>> {
-        Ok(self.inner.value.clone())
+    pub fn data(&self) -> Vec<u8> {
+        self.inner.value.clone()
     }
 }
 
 #[pymethods]
 impl Chd {
     #[pyo3(name = "__len__")]
-    pub fn len(&self) -> PyResult<usize> {
-        Ok(self.inner.header().hunk_count() as usize)
+    pub fn len(&self) -> usize {
+        self.inner.header().hunk_count() as usize
     }
 
     pub fn metadata(&mut self) -> PyResult<Vec<Metadata>> {
