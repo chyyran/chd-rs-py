@@ -24,7 +24,7 @@ impl From<ChdPyError> for PyErr {
 
 #[pyclass]
 struct Chd {
-    inner: ChdFile<BufReader<File>>,
+    inner: Option<ChdFile<BufReader<File>>>,
     cmp_vec: Vec<u8>,
 }
 
@@ -131,16 +131,32 @@ impl Metadata {
     }
 }
 
+impl Chd {
+    fn inner_mut(&mut self) -> PyResult<&mut ChdFile<BufReader<File>>> {
+        match self.inner.as_mut() {
+            Some(h) => Ok(h),
+            None => Err(ChdError::new_err("underlying object has been deleted"))
+        }
+    }
+
+    fn inner(&self) -> PyResult<&ChdFile<BufReader<File>>> {
+        match self.inner.as_ref() {
+            Some(h) => Ok(h),
+            None => Err(ChdError::new_err("underlying object has been deleted"))
+        }
+    }
+}
+
 #[pymethods]
 impl Chd {
     #[pyo3(name = "__len__")]
-    pub fn len(&self) -> usize {
-        self.inner.header().hunk_count() as usize
+    pub fn len(&mut self) -> PyResult<usize> {
+        Ok(self.inner()?.header().hunk_count() as usize)
     }
 
     pub fn metadata(&mut self) -> PyResult<Vec<Metadata>> {
         Ok(self
-            .inner
+            .inner_mut()?
             .metadata_refs()
             .try_into_vec()
             .map_err(ChdPyError)?
@@ -151,28 +167,32 @@ impl Chd {
 
     pub fn hunk(&mut self, hunk_num: usize) -> PyResult<Vec<u8>> {
         let mut cmp_vec = std::mem::take(&mut self.cmp_vec);
-        let mut out = self.inner.get_hunksized_buffer();
-        let mut hunk = self.inner.hunk(hunk_num as u32).map_err(ChdPyError)?;
+        let mut out = self.inner()?.get_hunksized_buffer();
+        let mut hunk = self.inner_mut()?.hunk(hunk_num as u32).map_err(ChdPyError)?;
         hunk.read_hunk_in(&mut cmp_vec, &mut out)
             .map_err(ChdPyError)?;
         self.cmp_vec = cmp_vec;
         Ok(out)
     }
+
+    pub fn header(&mut self) -> PyResult<Header> {
+        Ok(Header { inner: self.inner()?.header().clone() })
+    }
 }
 
 #[pyfunction]
-fn chd_open(path: String, parent: Option<String>) -> PyResult<Chd> {
+fn chd_open(path: String, parent: Option<&mut Chd>) -> PyResult<Chd> {
     let file = File::open(path)?;
     let parent = parent
-        .map(|p| File::open(p).map(BufReader::new))
-        .map_or(Ok(None), |v| v.map(Some))?
-        .map(|n| ChdFile::open(n, None))
-        .map_or(Ok(None), |v| v.map(|v| Some(Box::new(v))))
-        .map_err(ChdPyError)?;
+        .map(|p| {
+           p.inner.take()
+        })
+        .map_or(None, |v| v)
+        .map(Box::new);
 
     let chd = ChdFile::open(BufReader::new(file), parent).map_err(ChdPyError)?;
     Ok(Chd {
-        inner: chd,
+        inner: Some(chd),
         cmp_vec: Vec::new(),
     })
 }

@@ -1,14 +1,14 @@
 
 [package]
 name = "chd-rs-py"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 description = "Python bindings to chd-rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chd = { version = "0.1.6", features = ["verify_block_crc"] }
+chd = { version = "0.1.6", features = ["verify_block_crc"], git = "https://github.com/SnowflakePowered/chd-rs" }
 pyo3 = { version = "0.16", features = ["extension-module"] }
 
 [package.metadata.maturin]
